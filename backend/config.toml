@@ -1,0 +1,5 @@
+video_dir = "../../video"
+site_dir = "../frontend/dist"
+listen = "0.0.0.0:6090"
+accepts_file = "avi,mkv"
+video_tmp = "./tmp"
