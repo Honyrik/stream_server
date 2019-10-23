@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/buaazp/fasthttprouter"
+	logger "github.com/jeanphorn/log4go"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/expvarhandler"
 )
@@ -26,13 +27,14 @@ func startHTTP(config Config) {
 			panic(err)
 		}
 	}
+	logger.Info("Read video tmp")
 	readTmpDir(tmp)
 	// Setup FS handler
 	spaHandler := func(ctx *fasthttp.RequestCtx) {
 		f, err := os.Open(filepath.Join(config.SiteDir, "index.html"))
 		defer f.Close()
 		if err != nil {
-			log.Error(err)
+			logger.Error(err)
 			ctx.NotFound()
 			return
 		}
@@ -72,11 +74,11 @@ func startHTTP(config Config) {
 		if strings.HasPrefix(ct, "application/xml") {
 			params["xml"] = string(ctx.PostBody())
 		}
-		log.Debug("RequestUri: %s\n", ctx.RequestURI())
+		logger.Debug("RequestUri: %s\n", ctx.RequestURI())
 		ctx.Request.Header.VisitAll(func(key, value []byte) {
-			log.Debug("Header: %s=%s\n", key, value)
+			logger.Debug("Header: %s=%s\n", key, value)
 		})
-		log.Debug("Params: %s\n", params)
+		logger.Debug("Params: %s\n", params)
 		requestHandler(tmp, config, params, ctx)
 	}
 
@@ -85,8 +87,9 @@ func startHTTP(config Config) {
 	router.GET("/stats", expvarhandler.ExpvarHandler)
 	router.GET("/api/:query", apiHandler)
 	router.POST("/api/:query", apiHandler)
+	logger.Info("Http start %s", config.Listen)
 	if err := fasthttp.ListenAndServe(config.Listen, router.Handler); err != nil {
-		log.Error("error in ListenAndServe: %s", err)
+		logger.Error("error in ListenAndServe: %s", err)
 		panic(err)
 	}
 }

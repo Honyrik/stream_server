@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	logger "github.com/jeanphorn/log4go"
 	"github.com/valyala/fasthttp"
 )
 
@@ -102,20 +103,21 @@ func videoDirRead(dir string, accept string) ([]byte, error) {
 func readTmpDir(tmp string) {
 	files, err := ioutil.ReadDir(tmp)
 	if err != nil {
-		log.Warn(err)
+		logger.Warn(err)
 		return
 	}
 	for _, file := range files {
 		if strings.HasSuffix(file.Name(), ".meta") {
 			data, err := ioutil.ReadFile(filepath.Join(tmp, file.Name()))
+
 			if err != nil {
-				log.Warn(err)
+				logger.Warn(err)
 				continue
 			}
 			var video videoTmp
-			err = json.Unmarshal(data, video)
+			err = json.Unmarshal(data, &video)
 			if err != nil {
-				log.Warn(err)
+				logger.Warn(err)
 				continue
 			}
 			videosTmp[video.FkParent] = &video
@@ -125,9 +127,9 @@ func readTmpDir(tmp string) {
 			metaname := strings.Replace(file.Name(), ".webm", ".meta", -1)
 			name := filepath.Join(tmp, metaname)
 			if _, err := os.Stat(name); os.IsNotExist(err) {
-				err = os.RemoveAll(name)
+				err = os.RemoveAll(filepath.Join(tmp, file.Name()))
 				if err != nil {
-					log.Warn(err)
+					logger.Warn(err)
 				}
 			}
 		}
@@ -139,36 +141,36 @@ func encodeVideoFF(tmpDir string, data dirPath, video *videoTmp, uuid string) {
 	if err != nil {
 		delete(videosTmp, data.FkID)
 		delete(videosTmpUUID, uuid)
-		log.Error(err)
+		logger.Error(err)
 		return
 	}
 	state, err := f.Stat()
 	if err != nil {
 		delete(videosTmp, data.FkID)
 		delete(videosTmpUUID, uuid)
-		log.Error(err)
+		logger.Error(err)
 		return
 	}
 	video.FnCurrentSize = state.Size()
 	f.Close()
 	video.FvPath = filepath.Join(tmpDir, uuid+".webm")
-	cmd := exec.Command("ffmpeg", "-i", data.FkID, "-c:v", "libvpx", "-preset", "ultrafast", "-cpu-used", "-5", "-deadline", "realtime", "-b:v", "2m", "-c:a", "libvorbis", video.FvPath)
+	cmd := exec.Command("ffmpeg", "-i", data.FkID, "-c:v", "libvpx-vp9", "-c:a", "libvorbis", "-preset", "ultrafast", "-cpu-used", "-5", "-deadline", "realtime", "-b:v", "2m", video.FvPath)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Error(err)
-		log.Error(string(out))
+		logger.Error(err)
+		logger.Error(string(out))
 		delete(videosTmp, data.FkID)
 		delete(videosTmpUUID, uuid)
 		return
 	}
 	f, err = os.Open(video.FvPath)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		return
 	}
 	state, err = f.Stat()
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		return
 	}
 	video.FnCurrentSize = state.Size()
@@ -176,12 +178,12 @@ func encodeVideoFF(tmpDir string, data dirPath, video *videoTmp, uuid string) {
 	video.FlFinishEncode = true
 	jsonData, errMarshal := json.Marshal(video)
 	if errMarshal != nil {
-		log.Error(errMarshal)
+		logger.Error(errMarshal)
 		return
 	}
 	err = ioutil.WriteFile(filepath.Join(tmpDir, uuid+".meta"), jsonData, 0644)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		return
 	}
 }
@@ -205,18 +207,22 @@ func readFileVideo(video *videoTmp, ctx *fasthttp.RequestCtx) {
 
 	if videoRange {
 		f.Seek(start, 0)
-		buf := make([]byte, 100000)
+		var chunkLength int = 100000
+		if video.FlFinishEncode {
+			chunkLength = int(video.FnCurrentSize - start)
+		}
+		buf := make([]byte, chunkLength)
 		var len int
 		var errRead error
 		for {
 			len, errRead = f.Read(buf)
 			if errRead != nil {
 				if errRead.Error() == "EOF" {
-					if start >= video.FnCurrentSize {
+					if start >= video.FnCurrentSize && video.FlFinishEncode {
 						ctx.Response.Header.SetContentType("video/mp4")
 						ctx.Response.Header.SetContentLength(0)
 						ctx.Response.Header.Set("Accept-Ranges", "bytes")
-						ctx.Response.Header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, video.FnCurrentSize, video.FnCurrentSize))
+						ctx.Response.Header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", video.FnCurrentSize, video.FnCurrentSize, video.FnCurrentSize))
 						ctx.Response.Header.SetStatusCode(206)
 						ctx.Write(nil)
 						return
@@ -224,7 +230,7 @@ func readFileVideo(video *videoTmp, ctx *fasthttp.RequestCtx) {
 					time.Sleep(1000)
 					continue
 				}
-				log.Error(errRead)
+				logger.Error(errRead)
 				ctx.Error("Error buffer", 404)
 				return
 			}
@@ -233,7 +239,7 @@ func readFileVideo(video *videoTmp, ctx *fasthttp.RequestCtx) {
 		ctx.Response.Header.SetContentType("video/mp4")
 		ctx.Response.Header.SetContentLength(len)
 		ctx.Response.Header.Set("Accept-Ranges", "bytes")
-		ctx.Response.Header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, int(start)+len, video.FnCurrentSize))
+		ctx.Response.Header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, int(start)+len-1, video.FnCurrentSize))
 		ctx.Response.Header.SetStatusCode(206)
 		ctx.Write(buf[:len])
 		return

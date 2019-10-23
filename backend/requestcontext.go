@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	logger "github.com/jeanphorn/log4go"
 	uuid "github.com/satori/go.uuid"
 
 	"github.com/valyala/fasthttp"
@@ -52,13 +53,13 @@ func requestHandler(tmpDir string, config Config, params map[string]string, ctx 
 		if !ok {
 			uuid, errUUID := uuid.NewV4()
 			if errUUID != nil {
-				log.Error(errUUID)
+				logger.Error(errUUID)
 				ctx.Error("Failed", 500)
 				return
 			}
 			uuidByte, errMarchal := uuid.MarshalText()
 			if errMarchal != nil {
-				log.Error(errMarchal)
+				logger.Error(errMarchal)
 				ctx.Error("Failed", 500)
 				return
 			}

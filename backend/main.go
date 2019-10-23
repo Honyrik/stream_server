@@ -8,8 +8,6 @@ import (
 	logger "github.com/jeanphorn/log4go"
 )
 
-var log *logger.Filter
-
 func main() {
 	fileConfig := os.Getenv("STREAM_SERVER_CONFIG")
 	var err error
@@ -21,7 +19,7 @@ func main() {
 		fileConfig = filepath.Join(dirConfig, "config.toml")
 	}
 	logger.LoadConfiguration("./logger.json")
-	log = logger.LOGGER("Stream_server")
+	logger.Info("Init config")
 	var config Config
 	if config, err = initConfig(fileConfig); err != nil {
 		panic(err)

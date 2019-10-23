@@ -1,7 +1,7 @@
 {
   "console": {
       "enable": true,
-      "level": "FINE"
+      "level": "DEBUG"
   },  
   "files": [{ 
       "enable": false,
