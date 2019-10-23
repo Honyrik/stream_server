@@ -207,11 +207,7 @@ func readFileVideo(video *videoTmp, ctx *fasthttp.RequestCtx) {
 
 	if videoRange {
 		f.Seek(start, 0)
-		var chunkLength int = 100000
-		if video.FlFinishEncode {
-			chunkLength = int(video.FnCurrentSize - start)
-		}
-		buf := make([]byte, chunkLength)
+		buf := make([]byte, 100000)
 		var len int
 		var errRead error
 		for {
@@ -222,7 +218,7 @@ func readFileVideo(video *videoTmp, ctx *fasthttp.RequestCtx) {
 						ctx.Response.Header.SetContentType("video/mp4")
 						ctx.Response.Header.SetContentLength(0)
 						ctx.Response.Header.Set("Accept-Ranges", "bytes")
-						ctx.Response.Header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", video.FnCurrentSize, video.FnCurrentSize, video.FnCurrentSize))
+						ctx.Response.Header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", video.FnCurrentSize-1, video.FnCurrentSize-1, video.FnCurrentSize))
 						ctx.Response.Header.SetStatusCode(206)
 						ctx.Write(nil)
 						return
